@@ -13,16 +13,37 @@
 
 using namespace std;
 
-std::vector<cv::Rect> generate(){
+std::vector<int> generate_points(int size, int min_s){
+    std::vector<int> out;
 
-    std::vector<int> pnts = {0, 350, 700, 1024};
+    for (int i = 0; i <= size; i+=min_s) {
+
+        if(i == 0){
+            out.push_back(i);
+        }
+        else{
+            if(i >= size){
+                i=size;
+            }
+
+            out.push_back(i);
+        }
+    }
+
+    return out;
+}
+
+std::vector<cv::Rect> generate(int w, int h, int min_s){
+
+    std::vector<int> pnts_w = generate_points(w, min_s);
+    std::vector<int> pnts_h = generate_points(h, min_s);
     std::vector<cv::Rect> rois;
 
-    for (int i = 0; i < pnts.size()-1; ++i) {
-        for (int j = 0; j < pnts.size()-1; ++j) {
+    for (int i = 0; i < pnts_w.size()-1; ++i) {
+        for (int j = 0; j < pnts_h.size()-1; ++j) {
 
-            cv::Rect r(cv::Point(pnts.at(i), pnts.at(j)),
-                       cv::Point(pnts.at(i+1), pnts.at(j+1)));
+            cv::Rect r(cv::Point(pnts_w.at(i), pnts_h.at(j)),
+                       cv::Point(pnts_w.at(i+1), pnts_h.at(j+1)));
             rois.push_back(r);
 
         }
@@ -32,58 +53,48 @@ std::vector<cv::Rect> generate(){
 
 }
 
-std::vector<cv::Rect> generate_rect_without_overlap(){
-
-    std::vector<int> pnts = {0, 512, 1024};
-    std::vector<cv::Rect> rois;
-
-    for (int i = 0; i < pnts.size()-1; ++i) {
-        for (int j = 0; j < pnts.size()-1; ++j) {
-
-            cv::Rect r(cv::Point(pnts.at(i), pnts.at(j)),
-                       cv::Point(pnts.at(i+1), pnts.at(j+1)));
-            rois.push_back(r);
-
-        }
-    }
-
-    return rois;
-
-}
-
-std::vector<cv::Rect> generate_rect_with_overlap(std::vector<cv::Rect>& to_write)
+std::vector<cv::Rect> generate_rect_with_overlap(int w, int h, int min_s, int overlay, std::vector<cv::Rect>& to_write)
 {
 
-    std::vector<int> pnts = {0, 512, 1024};
+    std::vector<int> pnts_w = generate_points(w, min_s);
+    std::vector<int> pnts_h = generate_points(h, min_s);
+
     std::vector<cv::Rect> rois;
 
-    for (int i = 0; i < pnts.size()-1; ++i) {
-        for (int j = 0; j < pnts.size()-1; ++j) {
+    for (int i = 0; i < pnts_w.size()-1; ++i) {
+        for (int j = 0; j < pnts_h.size()-1; ++j) {
 
-            cv::Rect r(cv::Point(pnts.at(i), pnts.at(j)),
-                       cv::Point(pnts.at(i+1) + 256, pnts.at(j+1) + 256));
 
-            cv::Rect to_w (0,0,512,512);
+            int left = pnts_w.at(i) - overlay < 0 ? 0 :  pnts_w.at(i) - overlay;
+            int right = pnts_w.at(i+1) + overlay >= w ? w :  pnts_w.at(i+1) + overlay;
 
-            int x = 0, y = 0;
+            int top = pnts_h.at(j) - overlay < 0 ? 0 :  pnts_h.at(j) - overlay;
+            int bottom = pnts_h.at(j+1) + overlay >= h ? h :  pnts_h.at(j+1) + overlay;
 
-            if(r.br().x > 1024 || r.br().y > 1024)
-            {
-                if(r.br().x > 1024)
-                {
-                    x = r.tl().x - 256;
-                    to_w.x += 256;
-                }
+            int leftw = pnts_w.at(i) - overlay < 0 ? 0 :  overlay;
+            int rightw = leftw + min_s;// pnts_w.at(i+1) + overlay >= w ? w :  pnts_w.at(i+1) + overlay;
 
-                if(r.br().y > 1024)
-                {
-                    y = r.tl().y - 256;
-                    to_w.y += 256;
-                }
+            int topw = pnts_h.at(j) - overlay < 0 ? 0 :  overlay;
+            int bottomw = topw + min_s;// pnts_h.at(j+1) + overlay >= h ? h :  pnts_h.at(j+1) + overlay;
 
-                r = cv::Rect(cv::Point(x,y), cv::Point(pnts.at(i+1), pnts.at(j+1)));
+            cv::Rect r(cv::Point(left, top),cv::Point(right, bottom));
+            cv::Rect to_w(cv::Point(leftw, topw),cv::Point(rightw, bottomw));
 
-            }
+//            cv::Rect to_w (0,0,min_s,min_s);
+
+//            if(r.br().x > w || r.br().y > h)
+//            {
+//                if(r.br().x > w)
+//                {
+//                    to_w.x += overlay;
+//                }
+
+//                if(r.br().y > h)
+//                {
+//                    to_w.y += overlay;
+//                }
+
+//            }
             rois.push_back(r);
             to_write.push_back(to_w);
 
@@ -97,11 +108,11 @@ std::vector<cv::Rect> generate_rect_with_overlap(std::vector<cv::Rect>& to_write
 int main()
 {
     std::string directory_to_save = "/home/lunto/Documents/1/";
-    std::string path = "/home/lunto/00.69879.jpg";
+    std::string path = "/home/lunto/and.tif";
     cv::Mat img_pano = cv::imread(path);
 
-//    cv::resize(img_pano, img_pano,cv::Size(1024,1024));
-    img_pano(cv::Rect(2000,1500,1024,1024)).copyTo(img_pano);
+    //    cv::resize(img_pano, img_pano,cv::Size(1024,1024));
+//    img_pano(cv::Rect(2000,1500,1024,1024)).copyTo(img_pano);
     cv::imwrite(directory_to_save + "pano.png", img_pano);
 
     cv::Mat msk = cv::Mat::ones(img_pano.rows, img_pano.cols, CV_8UC1) * 255;
@@ -112,9 +123,11 @@ int main()
     // with overlap
     {
         cv::Mat out = cv::Mat::zeros(img_pano.rows, img_pano.cols, img_pano.type());
-         std::vector<cv::Rect> rects_to_write ;
-        std::vector<cv::Rect> rects_with = generate_rect_with_overlap(rects_to_write);
-        std::vector<cv::Rect> rects_without = generate_rect_without_overlap();
+        std::vector<cv::Rect> rects_to_write ;
+        std::vector<cv::Rect> rects_with = generate_rect_with_overlap(img_pano.cols, img_pano.rows,
+                                                                      512, 256,rects_to_write);
+        std::vector<cv::Rect> rects_without = generate(img_pano.cols, img_pano.rows,
+                                                       512);
 
 
         for (int i = 0; i < rects_with.size(); ++i) {
@@ -124,7 +137,8 @@ int main()
             blender = cv::detail::MultiBandBlender(false,6);
             blender.prepare(rr);
 
-            std::vector<cv::Rect> rects = generate();
+            std::vector<cv::Rect> rects = generate(img_pano.cols, img_pano.rows,
+                                                   300);
             for (const cv::Rect& rt : rects)
             {
                 if((rects_without.at(i) & rt).area() >= 1)
@@ -132,7 +146,7 @@ int main()
                     cv::Rect read = r & rt;
                     cv::Point tl(read.x - r.x, read.y - r.y);
 
-//                    float r = 1. / float(std::rand() % 10);
+                    //                    float r = 1. / float(std::rand() % 10);
 
                     blender.feed(img_pano(read)  ,msk(read), tl);
                 }
@@ -149,26 +163,26 @@ int main()
 
     }
 
-//    {
-//        blender = cv::detail::MultiBandBlender(false, 9);
-//        cv::Rect rr(0,0,512,512);
-//        blender.prepare(rr);
+    //    {
+    //        blender = cv::detail::MultiBandBlender(false, 9);
+    //        cv::Rect rr(0,0,512,512);
+    //        blender.prepare(rr);
 
-//        std::vector<cv::Rect> rects = generate();
+    //        std::vector<cv::Rect> rects = generate();
 
 
-//        for (const cv::Rect& r : rects)
-//        {
-//            if((r & rr).area() >= 1){
-//                cv::Rect read = r & rr;
-//                blender.feed(img_pano(read),msk(read), read.tl());
-//            }
-//        }
+    //        for (const cv::Rect& r : rects)
+    //        {
+    //            if((r & rr).area() >= 1){
+    //                cv::Rect read = r & rr;
+    //                blender.feed(img_pano(read),msk(read), read.tl());
+    //            }
+    //        }
 
-//        cv::Mat im, ms;
-//        blender.blend(im,ms);
-//        cv::imwrite(img2_path, im);
-//    }
+    //        cv::Mat im, ms;
+    //        blender.blend(im,ms);
+    //        cv::imwrite(img2_path, im);
+    //    }
 
     cv::Mat img1, img2;
     img1 = cv::imread(img1_path);
