@@ -107,8 +107,8 @@ std::vector<cv::Rect> generate_rect_with_overlap(int w, int h, int min_s, int ov
 
 int main()
 {
-    std::string directory_to_save = "/home/lunto/Documents/1/";
-    std::string path = "/home/lunto/and.tif";
+    std::string directory_to_save = "/home/mike/Downloads/sosnovka/3/";
+    std::string path = "/home/mike/Downloads/sosnovka/Panorama_park_1.jpg";
     cv::Mat img_pano = cv::imread(path);
 
     //    cv::resize(img_pano, img_pano,cv::Size(1024,1024));
@@ -118,27 +118,33 @@ int main()
     cv::Mat msk = cv::Mat::ones(img_pano.rows, img_pano.cols, CV_8UC1) * 255;
     std::string img1_path = directory_to_save + "3.png", img2_path = directory_to_save + "2.png";
 
-    cv::detail::MultiBandBlender blender ;
+    int size_tile = 1024;
+    int overlaps = 256;
+    int size_image = 400;
+
+
 
     // with overlap
     {
         cv::Mat out = cv::Mat::zeros(img_pano.rows, img_pano.cols, img_pano.type());
         std::vector<cv::Rect> rects_to_write ;
         std::vector<cv::Rect> rects_with = generate_rect_with_overlap(img_pano.cols, img_pano.rows,
-                                                                      512, 256,rects_to_write);
+                                                                      size_tile, overlaps,rects_to_write);
         std::vector<cv::Rect> rects_without = generate(img_pano.cols, img_pano.rows,
-                                                       512);
+                                                       size_tile);
 
+        std::vector<cv::Rect> rects = generate(img_pano.cols, img_pano.rows,
+                                               size_image);
 
+#pragma omp parallel for
         for (int i = 0; i < rects_with.size(); ++i) {
 
             cv::Rect r = rects_with.at(i);
             cv::Rect rr(0,0,r.width,r.height);
-            blender = cv::detail::MultiBandBlender(false,6);
+            cv::detail::MultiBandBlender blender  = cv::detail::MultiBandBlender(true,7);
             blender.prepare(rr);
 
-            std::vector<cv::Rect> rects = generate(img_pano.cols, img_pano.rows,
-                                                   300);
+
             for (const cv::Rect& rt : rects)
             {
                 if((rects_without.at(i) & rt).area() >= 1)
